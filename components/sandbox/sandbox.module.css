@@ -1,0 +1,199 @@
+/* Sandbox replay board. Dark game palette; class names kept from the HTML mockup. */
+.root {
+  --bg: #14120e; --panel: #1f1b15; --line: #3a3226; --ink: #ece5d3; --mute: #9d937c; --gold: #e9b949;
+  --p1: #4f8cff; --p2: #ff5b4f; --good: #5fd47a;
+  min-height: 100vh; background: var(--bg); color: var(--ink); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+.header { padding: 18px 24px 10px; }
+.title { margin: 0; font-size: 18px; font-weight: 600; }
+.sub { color: var(--mute); margin-top: 2px; }
+
+/* sticky clock: play, time, timeline with age marks, speed */
+.clock { position: sticky; top: 0; z-index: 5; background: rgba(20, 18, 14, .94); backdrop-filter: blur(6px);
+  padding: 10px 24px 14px; border-bottom: 1px solid var(--line); }
+.clock-row { display: flex; align-items: center; gap: 14px; }
+.play { background: var(--gold); color: #1b1408; width: 36px; height: 30px; font-weight: 700; }
+.play:hover { background: #f3c860; }
+.time { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; width: 70px; color: var(--gold); }
+.track { flex: 1; position: relative; height: 34px; display: flex; align-items: center; }
+.slider [data-slot="slider-range"] { background: var(--gold); }
+.slider [data-slot="slider-track"] { background: #3a342a; height: 6px; }
+.slider [data-slot="slider-thumb"] { background: var(--gold); border-color: var(--gold); width: 14px; height: 14px; }
+.age-tick { position: absolute; font-size: 10px; white-space: nowrap; transform: translateX(-50%); pointer-events: auto; cursor: default; }
+.age-tick.p1 { top: -2px; color: var(--p1); }
+.age-tick.p2 { top: 24px; color: var(--p2); }
+.speed { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.speed-item { color: var(--mute); height: 28px; padding: 0 9px; border-radius: 0; font-weight: 600; font-size: 12px;
+  font-variant-numeric: tabular-nums; }
+.speed-item + .speed-item { border-left: 1px solid var(--line); }
+.speed-item[data-pressed] { background: var(--gold); color: #1b1408; }
+
+/* the two player cards share row heights (subgrid), so Army, Navy and Technologies line up across them */
+.board { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); column-gap: 16px;
+  padding: 16px 24px 40px; }
+/* player card as rows: each section's side card sits in the same row as the section
+   (Defense beside the top, Army stats beside Army, Navy stats beside Navy); mirrored for player 2
+   so Defense and the stats face the middle of the page */
+.player { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--pc); border-radius: 10px;
+  padding: 14px; display: grid; column-gap: 10px; row-gap: 8px; align-items: start;
+  grid-row: span 4; grid-template-rows: subgrid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "top def" "army stats" "navy nstats" "tech tech"; }
+.player.p2 { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "def top" "stats army" "nstats navy" "tech tech"; }
+.player.p1 { --pc: var(--p1); }
+.player.p2 { --pc: var(--p2); }
+.area-top { grid-area: top; }
+.area-army { grid-area: army; }
+.area-navy { grid-area: navy; }
+.area-stats { grid-area: stats; }
+.area-nstats { grid-area: nstats; }
+.area-tech { grid-area: tech; }
+.ph { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.ph .n { font-size: 16px; font-weight: 700; color: var(--pc); }
+
+/* Blacksmith in its own column inside Army, production cards wrap beside it */
+.armybody { display: flex; gap: 8px; align-items: flex-start; }
+.armybody > .pcards { flex: 1; min-width: 0; }
+/* left player: Blacksmith on the inner edge, next to Army stats */
+.player.p1 .armybody { flex-direction: row-reverse; }
+
+/* side column: Defense with the age on top */
+.fortcol { grid-area: def; margin-bottom: 12px; align-self: stretch; display: flex; flex-direction: column; align-items: stretch; }
+.fortcol .forts { width: 100%; }
+.fage { text-align: center; font: 800 22px/1 Georgia, serif; color: var(--gold); letter-spacing: .04em; cursor: default;
+  margin-bottom: 11px; }
+.fage.ahead { color: var(--good); }
+.forts { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: #1a1712; }
+.fslot { display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.fslot .empty { width: 52px; height: 52px; border: 1.5px dashed #3a3226; border-radius: 6px; }
+.ic .gate { position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 5px; border-width: 1px; background: #2a251d; }
+.ic .gate .c { right: -8px; bottom: -6px; min-width: 16px; height: 14px; line-height: 12px; font-size: 9px; padding: 0 3px; }
+.ic .gate .d { display: none !important; }
+/* defense equipment under its fort tile, two per row, each with how many buildings carry it */
+.fblock { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.fups { display: grid; grid-template-columns: repeat(2, 22px); gap: 4px; }
+
+/* stat cards: HP alone, then the armor pair, then the damage pair with bonus damage */
+.side-card { width: 100%; }
+.astats { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #1a1712; }
+.arow { display: flex; justify-content: center; gap: 10px; }
+.arow + .arow { border-top: 1px solid var(--line); padding-top: 8px; }
+.astat { text-align: center; line-height: 1.15; min-width: 48px; cursor: default; }
+.si { display: inline-flex; color: var(--mute); }
+.si svg { width: 18px; height: 18px; }
+.astat .si { display: flex; justify-content: center; margin-bottom: 1px; }
+.astat b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+.astat.ahead b, .astat.ahead .si { color: var(--good); }
+.astat i { display: block; font-style: normal; font-size: 11px; font-weight: 700; color: var(--good); }
+.bonus { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; }
+.bonus > div { display: flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+.bonus .si { color: var(--gold); }
+.bonus .si svg { width: 14px; height: 14px; }
+
+.bscard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: #1a1712; }
+/* two columns, melee | ranged, mirroring the Army stats pairs */
+.bs { display: grid; grid-template-columns: repeat(2, 22px); gap: 4px; }
+.bs-sep { grid-column: 1 / -1; border-top: 1px solid #5b5140; margin: 2px 0; }
+
+/* sections and tiles */
+.group { margin-bottom: 12px; }
+.gt { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin-bottom: 6px; }
+.icons { display: flex; flex-wrap: wrap; gap: 6px; min-height: 52px; }
+.ic { position: relative; width: 52px; height: 52px; border-radius: 6px; background: #2a251d; border: 1.5px solid #4a4132;
+  cursor: default; transition: opacity .2s, filter .2s, transform .2s; }
+.ic img { width: 100%; height: 100%; object-fit: contain; border-radius: 5px; display: block; }
+.ic .c { position: absolute; right: -4px; bottom: -4px; min-width: 20px; padding: 0 4px; height: 18px; border-radius: 9px;
+  background: #0d0b08; border: 1px solid var(--line); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center;
+  font-variant-numeric: tabular-nums; }
+.ic .d { position: absolute; left: -4px; top: -4px; height: 16px; padding: 0 4px; border-radius: 8px; background: #5a1d18;
+  color: #ffb3ab; font-size: 10px; font-weight: 700; line-height: 16px; }
+.pcards { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.pcard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: #1a1712; min-width: 68px; }
+.pcard .icons { min-height: 0; justify-content: center; }
+.pcard .icons:empty { display: none; }
+/* Town Center and Market cards share a row, so they share a height */
+.pcards.eco { align-items: stretch; }
+.pcards.eco > .icons { align-self: flex-start; }
+/* stored relics, under the Monastery / Mosque icon */
+.relics { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--gold); cursor: default; }
+.relics .si { color: var(--gold); }
+.relics .si svg { width: 16px; height: 16px; }
+.relics.none { opacity: .35; }
+.relics.ahead, .relics.ahead .si { color: var(--good); }
+.ic.phead { width: 40px; height: 40px; }
+.mosaic { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 1px; width: 100%; height: 100%; padding: 2px; }
+.mosaic img { width: 100%; height: 100%; object-fit: contain; border-radius: 3px; transition: opacity .2s; }
+.mosaic img.off { opacity: .15; filter: grayscale(1); }
+.ic.landmark { width: 64px; height: 64px; border-color: #9b7ad8; }
+.ic.future { opacity: .12; filter: grayscale(1); }
+.ic.gone { opacity: .45; filter: grayscale(.7); }
+.ic.fresh { transform: scale(1.08); border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 185, 73, .35); }
+.ic.never { opacity: .18; filter: grayscale(1); border-style: dashed; }
+
+/* technologies left over: one box per building */
+.techs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tg { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 8px; background: #1a1712; }
+.tg-h { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 11px; font-weight: 600; }
+.tg-h img { width: 20px; height: 20px; object-fit: contain; }
+.tg-h .k { margin-left: auto; color: var(--mute); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tg .icons { min-height: 0; gap: 4px; }
+.ic.tech { width: 38px; height: 38px; }
+.ladder { display: grid; grid-template-columns: repeat(3, 38px); column-gap: 14px; row-gap: 4px; }
+.ladder .cell { position: relative; }
+.ladder .cell:not(:nth-child(3n+1))::before { content: "›"; position: absolute; left: -11px; top: 9px; color: #5b5140; font-size: 14px; }
+.ladder .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 4px 0 2px; }
+.ladder .other { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.ic.tech.ahead { border-color: var(--good); box-shadow: 0 0 0 2px rgba(95, 212, 122, .35); }
+
+/* advantage strip */
+.adv { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px 0; }
+.adv-p { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 10px; padding: 10px 14px 12px; }
+.adv-p.p1 { --pc: var(--p1); }
+.adv-p.p2 { --pc: var(--p2); }
+.adv-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.adv-h .n { font-weight: 700; color: var(--pc); }
+.adv-h .k { font-size: 22px; font-weight: 800; color: var(--good); font-variant-numeric: tabular-nums; margin-left: auto; line-height: 1; }
+.adv-h .l { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.adv-h .r { font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; background: #2d281f; }
+.adv-h .r.win { color: #7ee08a; }
+.adv-h .r.loss { color: #ff8a80; }
+.adv-row { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 8px; }
+.adv-row + .adv-row { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.adv-row .rl { font-size: 11px; color: var(--mute); display: flex; justify-content: space-between; align-items: center; line-height: 1.2; }
+.adv-row .rl b { color: var(--good); font-variant-numeric: tabular-nums; }
+.adv-p .icons { min-height: 38px; gap: 4px; }
+.adv-p .none { color: var(--mute); font-size: 12px; align-self: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid var(--good); border-radius: 6px; padding: 3px 7px;
+  font-size: 12px; background: rgba(95, 212, 122, .08); white-space: nowrap; cursor: default; }
+.chip .si { color: var(--good); }
+.chip.unit { padding: 2px 7px 2px 2px; }
+.chip.unit img { width: 24px; height: 24px; border-radius: 4px; }
+.chip b { color: var(--good); font-variant-numeric: tabular-nums; }
+.chip .age { font: 800 14px/1 Georgia, serif; color: var(--good); }
+
+/* a tile with its upgrades: framed (3+ upgrades) or as corner badges (1-2) */
+.vil { display: flex; gap: 6px; align-items: center; padding: 3px; margin: -4px 0; border: 1px solid var(--line); border-radius: 8px; background: #1a1712; }
+.pcard .vil { margin: 0; }
+.gather { display: flex; gap: 6px; align-items: center; }
+.g-common { display: grid; grid-template-columns: repeat(4, 22px); grid-auto-rows: 22px; gap: 4px; }
+.g-unique { display: grid; grid-template-rows: repeat(2, 22px); grid-auto-flow: column; grid-auto-columns: 22px; gap: 4px;
+  padding-left: 6px; border-left: 1px solid #5b5140; }
+/* army-card upgrade stacks: two per column, only as wide as they need */
+.u-col { display: grid; grid-template-rows: repeat(2, 22px); grid-auto-flow: column; grid-auto-columns: 22px; gap: 4px; }
+.u-col:empty { display: none; }
+.u-unique { padding-left: 6px; border-left: 1px solid #5b5140; }
+/* upgrade badges on a tile: first bottom-left, second top-right (losses use top-left, count bottom-right) */
+.ubadges .ic.mini { position: absolute; width: 20px; height: 20px; border-radius: 4px; background: #14120e; z-index: 2; }
+.ubadges .ic.mini:nth-child(1) { left: -6px; bottom: -6px; }
+.ubadges .ic.mini:nth-child(2) { right: -6px; top: -6px; }
+.ubadges .ic.mini:nth-child(3) { left: 18px; bottom: -6px; }
+.ubadges .ic.mini.never { opacity: .55; }
+.ic.mini { width: 22px; height: 22px; border-radius: 4px; border-width: 1px; }
+.ic.mini.ahead { border-color: var(--good); box-shadow: 0 0 0 1.5px rgba(95, 212, 122, .35); }
+.ic.mini .n { position: absolute; right: -5px; bottom: -5px; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 7px;
+  background: #0d0b08; border: 1px solid var(--line); font-size: 9px; font-weight: 700; line-height: 11px; text-align: center; }
+.ic.mini.ahead .n { color: var(--good); border-color: var(--good); }
