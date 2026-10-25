@@ -1,6 +1,6 @@
 // Game-time rules shared by the server (placing techs on the board) and the client (drawing a moment):
 // who a tech applies to, what is alive at time t, army totals, and who leads where.
-import type { GameData, Item, Player, Selector, StatKey, Tech } from "./types";
+import type { GameData, Item, Job, Player, Selector, StatKey, Tech } from "./types";
 
 export const ROMAN = ["", "I", "II", "III", "IV"];
 export const AGE = ["", "Dark", "Feudal", "Castle", "Imperial"];
@@ -23,10 +23,31 @@ export const selects = (sel: Selector, unit: UnitRef) =>
   || (!!unit.baseId && (sel.id ?? []).includes(unit.baseId));
 
 export const countAt = (times: number[], t: number) => times.filter((x) => x <= t).length;
+
+/** One unit or tech at time t: the ones in production now (one per building) and how many wait behind other items. */
+export type InQueue = { making: Job[]; waiting: number };
+export function queuesAt(p: Player, t: number) {
+  const out = new Map<string, InQueue>();
+  for (const j of p.jobs) {
+    if (j.q > t || t >= j.e) continue;
+    const q = out.get(j.id) ?? { making: [], waiting: 0 };
+    if (j.s <= t) q.making.push(j);
+    else q.waiting++;
+    out.set(j.id, q);
+  }
+  return out;
+}
 export const aliveAt = (it: { t: number[]; dead: number[] }, t: number) => countAt(it.t, t) - countAt(it.dead, t);
 
 /** relics held in buildings at time t: +1 when placed in, -1 when taken out */
 export const relicsAt = (p: Player, t: number) => Math.max(0, countAt(p.relics.in, t) - countAt(p.relics.out, t));
+/** each resource at time t, from the last 20 s sample before it: banked and gathered so far */
+export function resourcesAt(p: Player, t: number) {
+  const { t: times, kinds } = p.resources;
+  let i = 0;
+  while (i + 1 < times.length && times[i + 1] <= t) i++;
+  return { at: times[i] ?? 0, kinds: kinds.map((k) => ({ key: k.key, stock: k.stock[i] ?? 0, gathered: k.gathered[i] ?? 0 })) };
+}
 /** age reached by time t: 1 = Dark, 2 = Feudal, 3 = Castle, 4 = Imperial */
 export const ageAt = (p: Player, t: number) => (p.ages.filter((a) => a.t <= t).pop() ?? { age: 1 }).age;
 
@@ -114,25 +135,4 @@ export function armyTotals(p: Player, t: number, naval = false): Totals {
   return sum;
 }
 
-// economy infrastructure compared role against role; civ variants map onto one role
-// (capital TC counts as a town center, Trade Caravan counts as a trader)
-export const ECO_ROLES: [string, string][] = [["villager", "Villagers"], ["town-center", "Town centers"],
-  ["farm", "Farms"], ["trader", "Traders"], ["scout", "Scouts"]];
 export const TRADERS = ["trader", "trade-caravan", "reindeer-trader"];
-function roleOf(it: Item): string | null {
-  const id = it.baseId ?? it.key;
-  // the combined Town Center tile already includes the capital; skip the landmark copy
-  if (it.key === "town-centers") return "town-center";
-  if (id.includes("town-center")) return null;
-  if (TRADERS.includes(id)) return "trader";
-  return id;
-}
-export function aliveByRole(p: Player, t: number) {
-  const out: Record<string, { alive: number; icon: string }> = {};
-  for (const it of p.items) {
-    const role = roleOf(it);
-    if (!role || !ECO_ROLES.some(([r]) => r === role)) continue;
-    out[role] = { alive: (out[role]?.alive ?? 0) + aliveAt(it, t), icon: it.icon };
-  }
-  return out;
-}

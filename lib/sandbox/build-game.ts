@@ -4,6 +4,8 @@ import {
   TIER_ATTRIB, buildingsByBase, byPbgid, catalog, civsByBase, getVariant, idx, unitBaseByKey, unitVariant,
   type CatalogEntry, type IdxEntry,
 } from "./reference";
+import { productionJobs } from "./production";
+import type { QueueCommand } from "./replay";
 import type {
   ArmyCard, Building, FortSlot, GameData, Item, ItemGroup, Player, Selector, StatEffect, Tech, TechGroup, Tier, UnitVariant,
 } from "./types";
@@ -64,6 +66,9 @@ const ECO_BUILDINGS = new Set(["House", "Mill", "Hunting Cabin", "Mining Camp", 
   "Capital Town Center", "Market"]);
 
 const ECO_CLASSES = ["economic_upgrade", "scar_economic_upgrade"];
+const ROMAN_AGE = ["", "I", "II", "III", "IV"];
+// the four every civ banks, plus olive oil for the civs that have it
+const RESOURCES = ["food", "wood", "gold", "stone", "oliveoil"];
 const byNum = (a: number, b: number) => a - b;
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 /** Python's str.title(): "abbasid dynasty" -> "Abbasid Dynasty" */
@@ -132,12 +137,13 @@ function techGroups(civ: string, researched: [number, number][], landmarkIds: Se
       // an age-up researched as a tech (Abbasid wings): shown on its building,
       // but the age itself is the advantage, not the tech
       landmark: landmarkBases.has(e.baseId),
+      ageUp: (e.classes ?? []).includes("age_up_upgrade"),
       // who each effect applies to, used to hang the tech on a unit or building
       select: (() => {
         const sel = (e.effects ?? []).filter((fx) => fx.select && Object.keys(fx.select).length).map((fx) => fx.select!);
         return sel.length ? sel : SELECT_FALLBACK[e.baseId] ?? [];
       })(),
-      group: researchGroup(e.producedBy ?? []), t: null,
+      group: researchGroup(e.producedBy ?? []), t: null, cost: e.costs?.total ?? 0,
       // bought per building (Arrowslits, Springald Emplacement...), not fort-wide
       equip: (e.classes ?? []).includes("emplacement_upgrade")
         || (e.displayClasses ?? []).some((dc) => dc.endsWith("Emplacement")),
@@ -165,6 +171,15 @@ function techGroups(civ: string, researched: [number, number][], landmarkIds: Se
       tech.times = researchTimes.get(pbgid);
     }
   }
+  // an age-up's description lists what it makes available ("• Boot Camp (Age II)"); hang those techs under it
+  const UNLOCK = /•\s*([^•(]+?)\s*\(Age (IV|I{1,3})\)/g;
+  for (const e of catalog) {
+    if (!e.civs.includes(civ) || !(e.classes ?? []).includes("age_up_upgrade")) continue;
+    for (const [, name, age] of (e.description ?? "").matchAll(UNLOCK)) {
+      const tech = [...techs.values()].find((x) => x.name === name.trim());
+      if (tech) tech.unlockedBy = { id: e.baseId, name: e.name, icon: e.icon, age: ROMAN_AGE.indexOf(age) };
+    }
+  }
   const groups = new Map<string, Tech[]>();
   for (const tech of techs.values()) groups.set(tech.group, [...(groups.get(tech.group) ?? []), tech]);
   const rank = (k: string) => (BUILDING_ORDER.includes(k) ? BUILDING_ORDER.indexOf(k) : 99);
@@ -186,7 +201,7 @@ function fortSlots(civ: string, built: Map<string, { t: number[]; dead: number[]
   const entry = (base: string) => {
     const b = buildingsByBase.get(base)!;
     const times = built.get(base) ?? { t: [], dead: [] };
-    return { key: base, name: b.name, icon: b.icon, t: times.t, dead: times.dead };
+    return { key: base, name: b.name, icon: b.icon, t: times.t, dead: times.dead, cost: b.costs?.total ?? 0 };
   };
   return FORT_SLOTS.map(([key, label, options]) => ({
     key, label,
@@ -267,7 +282,16 @@ function armyCards(merged: Merged, civ: string): ArmyCard[] {
   return cards;
 }
 
-function buildPlayer(pl: Raw): Player {
+/** When each unit and tech was in production, from the replay's queue commands. */
+function jobs(civ: string, buildOrder: Raw[], commands: QueueCommand[], duration: number) {
+  const finished = new Map<number, number[]>();
+  for (const b of buildOrder) {
+    if (b.type === "Unit" || b.type === "Upgrade") finished.set(b.pbgid, [...(b.finished ?? [])].sort(byNum));
+  }
+  return productionJobs(civ, finished, commands, duration);
+}
+
+function buildPlayer(pl: Raw, commands: QueueCommand[], duration: number): Player {
   const civ = CIV_CODES[pl.civilization];
   const landmarks: Raw[] = pl.analysis.landmarks;
   const landmarkIds = new Set<number>(landmarks.map((l) => l.pbgid));
@@ -317,7 +341,7 @@ function buildPlayer(pl: Raw): Player {
     else if (b.type === "Building") group = ECO_BUILDINGS.has(name) ? "eco-buildings" : "mil-buildings";
     else if (b.type === "Unit") group = ECO_UNITS.has(meta.baseId) ? "economy" : "army";
     else group = "tech";
-    const item: Item = { name, icon: meta.icon, group, baseId: meta.baseId,
+    const item: Item = { name, icon: meta.icon, group, baseId: meta.baseId, cost: meta.cost,
       t: times, dead: [...b.destroyed].sort(byNum), key: meta.icon };
     if (b.type === "Unit") {
       // one tile per unit type; its icon/name follow the highest tier reached
@@ -354,6 +378,7 @@ function buildPlayer(pl: Raw): Player {
     merged.set(mkey("town-centers", "eco-buildings"), {
       name: "Town Center (capital included)", icon: buildingsByBase.get("town-center")!.icon,
       group: "eco-buildings", key: "town-centers", baseId: "town-center-all",
+      cost: buildingsByBase.get("town-center")!.costs?.total ?? 0,
       t: parts.flatMap((p) => p.t).sort(byNum), dead: parts.flatMap((p) => p.dead).sort(byNum),
     });
   }
@@ -364,7 +389,8 @@ function buildPlayer(pl: Raw): Player {
     merged.set(mkey("dropoffs", "eco-buildings"), {
       name: "Dropoffs", icon: parts[0].icon, group: "eco-buildings", key: "dropoffs",
       t: parts.flatMap((p) => p.t).sort(byNum), dead: parts.flatMap((p) => p.dead).sort(byNum),
-      parts: [...parts].sort((a, b) => a.t[0] - b.t[0]).map((p) => ({ name: p.name, icon: p.icon, t: p.t, dead: p.dead })),
+      parts: [...parts].sort((a, b) => a.t[0] - b.t[0])
+        .map((p) => ({ name: p.name, icon: p.icon, t: p.t, dead: p.dead, cost: p.cost })),
     });
   }
   // the market stays in Economy infrastructure even when it was never built
@@ -413,6 +439,12 @@ function buildPlayer(pl: Raw): Player {
     // relics placed into / taken out of buildings, from the summary's action log
     relics: { in: [...(actions.monkStatetreeDepositRelic ?? [])].sort(byNum),
       out: [...(actions.monkRemoveRelic ?? [])].sort(byNum) },
+    resources: {
+      t: pl.resources?.timestamps ?? [],
+      kinds: RESOURCES.filter((k) => Array.isArray(pl.resources?.[k]) && (k !== "oliveoil" || pl.resources[k].some(Boolean)))
+        .map((k) => ({ key: k, stock: pl.resources[k], gathered: pl.resources[`${k}Gathered`] ?? [] })),
+    },
+    jobs: jobs(civ, buildOrder, commands, duration),
   };
 }
 
@@ -420,6 +452,24 @@ function buildPlayer(pl: Raw): Player {
 export const isSupported = (summary: Raw) =>
   summary.players?.length === 2 && summary.players.every((p: Raw) => p.civilization in CIV_CODES);
 
-export function buildGame(summary: Raw): GameData {
-  return { duration: summary.duration, map: summary.mapName, players: summary.players.map(buildPlayer) };
+/** The board data; with the game's replay commands, each building also shows what it was making. */
+export function buildGame(summary: Raw, commands: QueueCommand[] = []): GameData {
+  const players: Raw[] = summary.players;
+  const byPlayer = matchReplayPlayers(players, commands);
+  return { duration: summary.duration, map: summary.mapName,
+    players: players.map((pl, i) => buildPlayer(pl, byPlayer[i], summary.duration)) };
+}
+
+/** Replay player ids aren't in the summary: each one goes to the summary player whose build order has
+ *  the most of the things it queued. */
+function matchReplayPlayers(players: Raw[], commands: QueueCommand[]): QueueCommand[][] {
+  const ids = [...new Set(commands.map((c) => c.playerId))];
+  const has = players.map((pl) => new Set((pl.buildOrder as Raw[]).map((b) => b.pbgid)));
+  const score = (id: number, i: number) => commands.filter((c) => c.playerId === id && has[i].has(c.pbgid)).length;
+  const out: QueueCommand[][] = players.map(() => []);
+  if (ids.length !== 2) return out;
+  const [a, b] = score(ids[0], 0) + score(ids[1], 1) >= score(ids[0], 1) + score(ids[1], 0) ? ids : [ids[1], ids[0]];
+  out[0] = commands.filter((c) => c.playerId === a);
+  out[1] = commands.filter((c) => c.playerId === b);
+  return out;
 }

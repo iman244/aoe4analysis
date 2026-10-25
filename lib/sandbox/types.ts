@@ -38,8 +38,10 @@ export type Item = {
   dead: number[];
   tiers?: Tier[];
   classes?: string[];
+  /** resource value of one (all resources added together) */
+  cost?: number;
   /** the dropoffs tile keeps each camp type */
-  parts?: { name: string; icon: string; t: number[]; dead: number[] }[];
+  parts?: { name: string; icon: string; t: number[]; dead: number[]; cost?: number }[];
 };
 
 export type Tech = {
@@ -52,10 +54,16 @@ export type Tech = {
   type: "technology" | "upgrade";
   /** an age-up researched as a tech (Abbasid wings) */
   landmark: boolean;
+  /** any age-up tech, researched or not (every Abbasid wing) */
+  ageUp: boolean;
+  /** the age-up that makes it available, and from which age (an Abbasid wing's three techs) */
+  unlockedBy?: { id: string; name: string; icon: string; age: number };
   select: Selector[];
   group: string;
   /** first research time, null when never researched */
   t: number | null;
+  /** resource value of one purchase */
+  cost: number;
   /** every purchase, for techs bought per building */
   times?: number[];
   /** bought per building (emplacements), not fort-wide */
@@ -67,7 +75,7 @@ export type Tech = {
 
 export type TechGroup = { key: string; label: string; icon?: string; techs: Tech[] };
 
-export type Building = { key?: string; name: string; icon: string; t: number[]; dead: number[] };
+export type Building = { key?: string; name: string; icon: string; t: number[]; dead: number[]; cost?: number };
 
 export type FortEntry = Building & { key: string; gate?: Building & { key: string } };
 export type FortSlot = { key: string; label: string; entries: FortEntry[] };
@@ -86,6 +94,17 @@ export type StatEffect = {
   effects: { property: string; select: Selector; effect: string; value: number }[];
 };
 
+/** One unit or tech made in a building, read from the replay: queued at q, in production from s to e. */
+export type Job = {
+  /** the unit's or tech's baseId, as on its tile */
+  id: string;
+  /** its resource value */
+  cost: number;
+  q: number;
+  s: number;
+  e: number;
+};
+
 export type Player = {
   name: string;
   civ: string;
@@ -98,6 +117,10 @@ export type Player = {
   armyCards: ArmyCard[];
   blacksmith: Building;
   relics: { in: number[]; out: number[] };
+  /** sampled every 20 s: what's in the bank (stock) and gathered so far, per resource */
+  resources: { t: number[]; kinds: { key: string; stock: number[]; gathered: number[] }[] };
+  /** everything queued in a building, with its production time; empty without a replay */
+  jobs: Job[];
 };
 
 export type GameData = { duration: number; map: string; players: Player[] };

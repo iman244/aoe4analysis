@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { listGameIds, loadSandbox } from "@/lib/sandbox/data";
 
-export default function Home() {
-  const games = listGameIds().flatMap((id) => {
-    const sandbox = loadSandbox(id);
+export default async function Home() {
+  const games = (await Promise.all(listGameIds().map(async (id) => {
+    const sandbox = await loadSandbox(id);
     return sandbox ? [{ id, game: sandbox.game }] : [];
-  });
+  }))).flat();
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-12">
       <h1 className="text-xl font-semibold">Sandbox replays</h1>

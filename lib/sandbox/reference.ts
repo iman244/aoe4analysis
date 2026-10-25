@@ -12,23 +12,39 @@ const load = (name: string): Raw[] => JSON.parse(fs.readFileSync(path.join(dataD
 
 const buildings = load("buildings");
 const units = load("units");
-const technologies = load("technologies");
+const technologies = applyOverrides(load("technologies"));
 const upgrades = load("upgrades");
 
-export type IdxEntry = { name: string; icon: string; baseId: string; age?: number; attribName: string };
+/** Corrections for games newer than the aoe4world data (data/aoe4world/overrides.json): for one civ,
+ *  drop the listed techs and put in the given entries instead. */
+function applyOverrides(list: Raw[]): Raw[] {
+  const file = path.join(dataDir, "overrides.json");
+  if (!fs.existsSync(file)) return list;
+  const { civ, remove, add } = JSON.parse(fs.readFileSync(file, "utf-8")).technologies as
+    { civ: string; remove: string[]; add: Raw[] };
+  const kept = list.flatMap((e) => {
+    if (!remove.includes(e.baseId) || !e.civs.includes(civ)) return [e];
+    const civs = e.civs.filter((c: string) => c !== civ);
+    return civs.length ? [{ ...e, civs }] : [];
+  });
+  return [...kept, ...add];
+}
+
+export type IdxEntry = { name: string; icon: string; baseId: string; age?: number; attribName: string; cost: number };
 
 /** pbgid -> name/icon/baseId; the first entry wins, buildings before units before techs */
 export const idx = new Map<number, IdxEntry>();
 for (const list of [buildings, units, technologies, upgrades]) {
   for (const e of list) {
     if (!idx.has(e.pbgid)) {
-      idx.set(e.pbgid, { name: e.name, icon: e.icon, baseId: e.baseId, age: e.age, attribName: e.attribName ?? "" });
+      idx.set(e.pbgid, { name: e.name, icon: e.icon, baseId: e.baseId, age: e.age, attribName: e.attribName ?? "",
+        cost: e.costs?.total ?? 0 });
     }
   }
 }
 // the second palisade id has no entry of its own
 idx.set(199624, { name: "Palisade", icon: "https://data.aoe4world.com/images/buildings/palisade-1.png",
-  baseId: "palisade", attribName: "" });
+  baseId: "palisade", attribName: "", cost: 0 });
 
 export const TIER_ATTRIB = /^(?:upgrade_)?unit_(.+?)_(\d)(?:_|$)/; // unit_archer_3_abb / upgrade_unit_archer_3
 
@@ -99,7 +115,20 @@ export type CatalogEntry = {
   pbgid: number; baseId: string; name: string; icon: string; age: number; type: "technology" | "upgrade";
   civs: string[]; producedBy?: string[]; classes?: string[]; displayClasses?: string[]; description?: string;
   unique?: boolean; effects?: { type?: string; property?: string; select?: Selector; effect?: string; value?: number }[];
+  costs?: { total?: number };
 };
+
+/** Which unit or tech a pbgid is for one civ, and how long it takes to make. */
+export type MadeEntry = { baseId: string; time: number; cost: number };
+// the same pbgid can differ per civ (Rus research Wheelbarrow at the Hunting Cabin, faster or slower)
+const madeByCiv = new Map<string, MadeEntry>();
+for (const e of [...units, ...technologies, ...upgrades]) {
+  for (const civ of e.civs as string[]) {
+    const k = `${e.pbgid}|${civ}`;
+    if (!madeByCiv.has(k)) madeByCiv.set(k, { baseId: e.baseId, time: e.costs?.time ?? 0, cost: e.costs?.total ?? 0 });
+  }
+}
+export const getMade = (pbgid: number, civ: string) => madeByCiv.get(`${pbgid}|${civ}`);
 
 /** every researchable tech/upgrade with its producers */
 export const catalog: CatalogEntry[] = [...technologies, ...upgrades] as CatalogEntry[];

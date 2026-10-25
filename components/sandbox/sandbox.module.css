@@ -1,7 +1,10 @@
 /* Sandbox replay board. Dark game palette; class names kept from the HTML mockup. */
-.root {
+/* colours, also on the value pop-up, which opens outside the board */
+.root, .valpop {
   --bg: #14120e; --panel: #1f1b15; --line: #3a3226; --ink: #ece5d3; --mute: #9d937c; --gold: #e9b949;
-  --p1: #4f8cff; --p2: #ff5b4f; --good: #5fd47a;
+  --p1: #4f8cff; --p2: #ff5b4f; --good: #5fd47a; --lost: #d98b73;
+}
+.root {
   min-height: 100vh; background: var(--bg); color: var(--ink); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif;
 }
 .header { padding: 18px 24px 10px; }
@@ -28,18 +31,26 @@
 .speed-item + .speed-item { border-left: 1px solid var(--line); }
 .speed-item[data-pressed] { background: var(--gold); color: #1b1408; }
 
-/* the two player cards share row heights (subgrid), so Army, Navy and Technologies line up across them */
-.board { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); column-gap: 16px;
-  padding: 16px 24px 40px; }
+/* the two player cards share row heights (subgrid), so Army and Navy line up across them */
+.board { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); column-gap: 16px;
+  padding: 16px 72px 40px 24px; }
+
+/* one section menu on the right edge, beside both players; clicking scrolls to the section,
+   which stops below the sticky clock */
+.secnav { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 6; display: flex; flex-direction: column;
+  gap: 2px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.secnav-item { color: var(--mute); }
+.secnav-item:hover { color: var(--gold); background: #2a251d; }
+.root [data-section] { scroll-margin-top: 84px; }
 /* player card as rows: each section's side card sits in the same row as the section
    (Defense beside the top, Army stats beside Army, Navy stats beside Navy); mirrored for player 2
    so Defense and the stats face the middle of the page */
 .player { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--pc); border-radius: 10px;
   padding: 14px; display: grid; column-gap: 10px; row-gap: 8px; align-items: start;
-  grid-row: span 4; grid-template-rows: subgrid;
+  grid-row: span 3; grid-template-rows: subgrid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "top def" "army stats" "navy nstats" "tech tech"; }
-.player.p2 { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "def top" "stats army" "nstats navy" "tech tech"; }
+  grid-template-areas: "top def" "army stats" "navy nstats"; }
+.player.p2 { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "def top" "stats army" "nstats navy"; }
 .player.p1 { --pc: var(--p1); }
 .player.p2 { --pc: var(--p2); }
 .area-top { grid-area: top; }
@@ -47,8 +58,15 @@
 .area-navy { grid-area: navy; }
 .area-stats { grid-area: stats; }
 .area-nstats { grid-area: nstats; }
-.area-tech { grid-area: tech; }
-.ph { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.ph { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+/* resources sit next to the age: at the end of the name row on the left player, at its start on the mirrored right one */
+.player.p2 .ph { flex-direction: row-reverse; }
+.res { display: flex; gap: 12px; }
+.res-k { display: flex; align-items: center; gap: 4px; cursor: default; }
+.res-k img { width: 26px; height: 20px; object-fit: contain; }
+.res-n { display: flex; flex-direction: column; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.res-n b { font-size: 14px; font-weight: 700; }
+.res-n span { font-size: 10px; color: var(--mute); }
 .ph .n { font-size: 16px; font-weight: 700; color: var(--pc); }
 
 /* Blacksmith in its own column inside Army, production cards wrap beside it */
@@ -60,8 +78,31 @@
 /* side column: Defense with the age on top */
 .fortcol { grid-area: def; margin-bottom: 12px; align-self: stretch; display: flex; flex-direction: column; align-items: stretch; }
 .fortcol .forts { width: 100%; }
-.fage { text-align: center; font: 800 22px/1 Georgia, serif; color: var(--gold); letter-spacing: .04em; cursor: default;
-  margin-bottom: 11px; }
+/* the age numeral with the player's assets beside it */
+.fage-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 11px; }
+.fage { font: 800 22px/1 Georgia, serif; color: var(--gold); letter-spacing: .04em; cursor: default; }
+/* assets beside the age: the number, and a bar under it split buildings / units / upgrades */
+.fage-asset { display: inline-flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 0; border: 0; background: none;
+  color: var(--ink); font: inherit; cursor: default; }
+.fage-num { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fage-num svg { width: 15px; height: 15px; color: var(--mute); }
+.fage-num .vs { margin-left: 2px; font-size: 11px; }
+.abar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #2a251d; }
+.abar i { display: block; height: 100%; transition: width .3s; }
+.fage-asset:hover .abar, .fage-asset:focus-visible .abar { outline: 1px solid var(--gold); outline-offset: 1px; }
+.fage-asset:focus-visible { outline: none; }
+.abar .buildings, .dot.buildings { background: #8fa3b8; }
+.abar .units, .dot.units { background: #cfc4a8; }
+.abar .upgrades, .dot.upgrades { background: #9b7ad8; }
+.asset-split { display: grid; grid-template-columns: auto auto auto; gap: 2px 12px; align-items: center; font-size: 11px; font-weight: 600;
+  line-height: 15px; font-variant-numeric: tabular-nums; }
+.asset-split-h { grid-column: 1 / -1; max-width: 300px; margin-bottom: 4px; color: var(--mute); font-weight: 500; }
+.dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.cv.pct { color: var(--mute); }
+.vs-sep { color: #5b5140; }
+.vs.up { color: var(--good); }
+.vs.down { color: #ff7a6e; }
+.vs.even, .vs.none { color: var(--mute); }
 .fage.ahead { color: var(--good); }
 .forts { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line);
   border-radius: 8px; background: #1a1712; }
@@ -98,8 +139,78 @@
 .bs-sep { grid-column: 1 / -1; border-top: 1px solid #5b5140; margin: 2px 0; }
 
 /* sections and tiles */
-.group { margin-bottom: 12px; }
-.gt { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin-bottom: 6px; }
+.group { margin-bottom: 18px; }
+/* section header bar: icon, title, and the fold arrow on the right; the whole bar is the button */
+.sec-h { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 10px; margin-bottom: 8px;
+  border: 1px solid var(--line); border-radius: 7px; background: #26211a; color: var(--ink); font: inherit; text-align: left; }
+.sec-btn { cursor: pointer; transition: background-color .15s, border-color .15s; }
+.sec-btn:hover { background: #2f291f; border-color: #6b5c3e; }
+.sec-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.sec-icon { width: 15px; height: 15px; flex: none; color: var(--gold); }
+.sec-title { font-size: 12px; font-weight: 650; letter-spacing: .02em; }
+.chev { width: 16px; height: 16px; flex: none; color: var(--mute); transition: transform .2s; }
+.sec-h .chev { margin-left: auto; }
+/* a building card's resource value: a bar split asset / lost / queued with what was spent; the table on hover */
+.vbar-row { display: flex; align-items: center; gap: 6px; align-self: stretch; padding: 4px 2px 0; border: 0; border-top: 1px solid var(--line);
+  background: none; color: var(--ink); font: inherit; cursor: default; }
+.vbar-row:hover .vbar, .vbar-row:focus-visible .vbar { outline: 1px solid var(--gold); outline-offset: 1px; }
+.vbar-row:focus-visible { outline: none; }
+.vbar { flex: 1; display: flex; height: 6px; min-width: 40px; border-radius: 3px; overflow: hidden; background: #2a251d; }
+.vbar i { display: block; height: 100%; transition: width .3s; }
+.vbar .asset-b { background: #8f8670; }
+.vbar .asset-u { background: #e8dfc7; }
+.vbar .asset-t { background: #9b7ad8; }
+.vbar .lost { background: var(--lost); }
+.vbar .queued { background: var(--gold); }
+.vbar-spent { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; color: var(--mute);
+  font-variant-numeric: tabular-nums; }
+.vbar-spent svg { width: 11px; height: 11px; }
+.vbar-spent.zero { opacity: .4; }
+/* the pop-up: building / units / upgrades rows, then their sum under a line */
+.valpop { width: auto !important; background: var(--panel) !important; color: var(--ink) !important; border: 1px solid var(--line);
+  padding: 8px 10px !important; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+.card-vals { display: grid; grid-template-columns: auto repeat(4, auto); gap: 2px 10px; align-items: center;
+  font-size: 11px; font-weight: 600; line-height: 15px; font-variant-numeric: tabular-nums; }
+.cv-sep { grid-column: 1 / -1; border-top: 1px solid var(--mute); margin: 3px 0 1px; opacity: .6; }
+.cv.sum { font-size: 12px; font-weight: 800; }
+.cv-r.sum { color: var(--ink); font-weight: 700; }
+.cv-h, .cv-r { display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--mute); }
+.cv-h { flex-direction: column; gap: 1px; font-size: 9px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.cv-r { justify-content: flex-start; font-weight: 500; }
+.cv-h svg, .cv-r svg { width: 12px; height: 12px; flex: none; }
+.cv { text-align: right; }
+.cv.asset, .cv-h.asset { color: var(--ink); }
+.cv.lost, .cv-h.lost { color: var(--lost); }
+.cv.queued, .cv-h.queued { color: var(--gold); }
+.cv.spent, .cv-h.spent { color: var(--mute); }
+.cv.zero { opacity: .35; }
+.cv.na { color: #5b5140; }
+/* the army's / navy's asset on top of its stats card */
+.stat-asset { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: default; }
+.stat-asset svg { width: 15px; height: 15px; color: var(--mute); }
+.stat-asset .vs { margin-left: 2px; font-size: 11px; }
+.stat-asset.zero { opacity: .35; }
+.sec-btn:hover .chev, .adv-h:hover .chev { color: var(--gold); }
+.sec-btn:not([data-panel-open]) .chev, .adv-h:not([data-panel-open]) .chev { transform: rotate(-90deg); }
+/* a folded section's summary line: chips of what's alive (+making/waiting), plain notes, totals */
+/* folded: the summary sits in a dashed box that opens the section when clicked */
+.abstract { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; min-height: 42px; padding: 6px 8px;
+  border: 1px dashed #4a4132; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 12px;
+  text-align: left; cursor: pointer; transition: background-color .15s, border-color .15s; }
+.abstract:hover { background: #1f1b15; border-color: var(--gold); }
+.abstract:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.abstract-open { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--gold); opacity: 0; transition: opacity .15s; }
+.abstract:hover .abstract-open, .abstract:focus-visible .abstract-open { opacity: 1; }
+.sum-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px 2px 2px; border: 1px solid var(--line);
+  border-radius: 6px; background: #1a1712; cursor: default; font-variant-numeric: tabular-nums; }
+.sum-chip img { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; }
+.sum-chip .si { padding-left: 4px; color: var(--gold); }
+.sum-chip em { font-style: normal; font-weight: 700; color: var(--gold); }
+.sum-text { color: var(--mute); }
+.sum-icon { width: 28px; height: 28px; border-radius: 5px; object-fit: contain; border: 1px solid #9b7ad8; }
+.sum-stats { display: inline-flex; gap: 10px; margin-left: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sum-stats > span { display: inline-flex; align-items: center; gap: 3px; cursor: default; }
+.sum-stats .si svg { width: 15px; height: 15px; }
 .icons { display: flex; flex-wrap: wrap; gap: 6px; min-height: 52px; }
 .ic { position: relative; width: 52px; height: 52px; border-radius: 6px; background: #2a251d; border: 1.5px solid #4a4132;
   cursor: default; transition: opacity .2s, filter .2s, transform .2s; }
@@ -112,15 +223,19 @@
 .pcards { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
 .pcard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line);
   border-radius: 8px; background: #1a1712; min-width: 68px; }
-.pcard .icons { min-height: 0; justify-content: center; }
+/* centered, so a plain tile lines up with a framed one beside it (Scout next to the Villager's upgrade frame) */
+.pcard .icons { min-height: 0; justify-content: center; align-items: center; }
 .pcard .icons:empty { display: none; }
 /* Town Center and Market cards share a row, so they share a height */
 .pcards.eco { align-items: stretch; }
-.pcards.eco > .icons { align-self: flex-start; }
-/* stored relics, under the Monastery / Mosque icon */
+.eco-rest { margin-top: 8px; }
+/* stored relics, in the corner of the Monastery / Mosque card */
 .relics { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--gold); cursor: default; }
-.relics .si { color: var(--gold); }
-.relics .si svg { width: 16px; height: 16px; }
+.relic-ic { width: 20px; height: 20px; object-fit: contain; flex: none; }
+/* in the religious building's card it sits in the top-right corner; the card is kept wide enough
+   that the corner never runs into the building icon and its upgrade badges */
+.pcard:has(> .relics) { position: relative; min-width: 156px; }
+.pcard > .relics { position: absolute; top: 6px; right: 8px; }
 .relics.none { opacity: .35; }
 .relics.ahead, .relics.ahead .si { color: var(--good); }
 .ic.phead { width: 40px; height: 40px; }
@@ -132,6 +247,15 @@
 .ic.gone { opacity: .45; filter: grayscale(.7); }
 .ic.fresh { transform: scale(1.08); border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 185, 73, .35); }
 .ic.never { opacity: .18; filter: grayscale(1); border-style: dashed; }
+/* in production: gold border, a bar filling up the left edge, and "+making/waiting" after the count;
+   only waiting (behind other items in its building): dashed gold border */
+.ic.making { border-color: var(--gold); }
+.ic.queued { border-color: var(--gold); border-style: dashed; }
+.ic.future.making, .ic.future.queued { opacity: .6; filter: grayscale(.3); }
+.ic .c em { font-style: normal; color: var(--gold); }
+.qbar { position: absolute; left: 0; bottom: 0; width: 3px; height: 100%; background: var(--gold); border-radius: 2px;
+  transform-origin: bottom; }
+.ic.mini .qbar { width: 2px; }
 
 /* technologies left over: one box per building */
 .techs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -146,24 +270,54 @@
 .ladder .cell:not(:nth-child(3n+1))::before { content: "›"; position: absolute; left: -11px; top: 9px; color: #5b5140; font-size: 14px; }
 .ladder .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 4px 0 2px; }
 .ladder .other { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+/* techs under the age-up that unlocks them (House of Wisdom wings): a column per wing, ages down */
+.wings { display: grid; column-gap: 8px; row-gap: 4px; }
+.wing-h { display: flex; justify-content: center; padding-bottom: 4px; border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+.wing-h img { width: 26px; height: 26px; object-fit: contain; border-radius: 4px; }
+.wings .sep { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 4px 0 2px; }
+.wings .other { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
 .ic.tech.ahead { border-color: var(--good); box-shadow: 0 0 0 2px rgba(95, 212, 122, .35); }
 
 /* advantage strip */
-.adv { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px 0; }
+.adv { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 72px 0 24px; }
 .adv-p { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 10px; padding: 10px 14px 12px; }
 .adv-p.p1 { --pc: var(--p1); }
 .adv-p.p2 { --pc: var(--p2); }
-.adv-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.adv-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; width: 100%; background: none; border: 0; padding: 0;
+  font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.adv-h:not([data-panel-open]) { margin-bottom: 0; }
+.adv-h .chev { align-self: center; color: var(--mute); }
 .adv-h .n { font-weight: 700; color: var(--pc); }
 .adv-h .k { font-size: 22px; font-weight: 800; color: var(--good); font-variant-numeric: tabular-nums; margin-left: auto; line-height: 1; }
 .adv-h .l { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
 .adv-h .r { font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; background: #2d281f; }
 .adv-h .r.win { color: #7ee08a; }
 .adv-h .r.loss { color: #ff8a80; }
-.adv-row { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 8px; }
-.adv-row + .adv-row { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
-.adv-row .rl { font-size: 11px; color: var(--mute); display: flex; justify-content: space-between; align-items: center; line-height: 1.2; }
-.adv-row .rl b { color: var(--good); font-variant-numeric: tabular-nums; }
+/* groups (Age & relics, Upgrades, Infrastructure, Units) split by a rule, each with its lead count;
+   rows inside a group split economy from military */
+.adv-g { padding-top: 8px; margin-top: 8px; border-top: 1px solid var(--line); }
+.adv-gt { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 10px;
+  font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.adv-gt b { margin-left: auto; font-size: 12px; color: var(--good); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+/* asset value after a group or column title: the value in the text colour, the lead in green */
+.adv-gt { justify-content: flex-start; gap: 10px; }
+.adv-asset { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; letter-spacing: 0;
+  text-transform: none; color: var(--ink); font-variant-numeric: tabular-nums; cursor: default; }
+.adv-asset svg { width: 12px; height: 12px; color: var(--mute); }
+.adv-asset i { margin-left: 3px; font-style: normal; color: var(--good); }
+.adv-asset.zero { opacity: .45; }
+.adv-sl .adv-asset { margin-left: 6px; }
+.adv-gt b.zero { color: var(--mute); opacity: .6; }
+/* economy | military as two columns in every group: own icon, own label colour, a divider between */
+.adv-split { display: grid; grid-template-columns: 1fr 1fr; }
+.adv-side { min-width: 0; padding: 2px 0 4px; }
+.adv-side.eco { --side: #d9b45a; padding-right: 12px; }
+.adv-side.mil { --side: #e0836a; padding-left: 12px; border-left: 1px solid var(--line); }
+.adv-sl { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 11px; font-weight: 600; color: var(--side); }
+.adv-sl svg { width: 13px; height: 13px; }
+.adv-side .chips { min-height: 38px; }
+.adv-sub { display: inline-flex; color: var(--mute); }
+.adv-sub svg { width: 14px; height: 14px; }
 .adv-p .icons { min-height: 38px; gap: 4px; }
 .adv-p .none { color: var(--mute); font-size: 12px; align-self: center; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; align-items: center; }

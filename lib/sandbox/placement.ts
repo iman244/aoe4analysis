@@ -25,6 +25,9 @@ export type PlayerLayout = {
   techGroups: TechGroup[];
 };
 
+// research buildings whose techs stay in the Technologies section even when drawn on unit cards
+const ALSO_LISTED = new Set(["university", "madrasa"]);
+
 const ups = (techs: Tech[], frameIfMany = true): Ups => ({ techs, frame: frameIfMany && upSlots(techs).length > 2 });
 const groupTechs = (p: Player, key: string | undefined) => p.techGroups.find((g) => g.key === key)?.techs ?? [];
 
@@ -130,9 +133,12 @@ export function layoutPlayer(p: Player): PlayerLayout {
     blacksmithTechs: groupTechs(p, "blacksmith"),
     forts,
     // only what isn't shown elsewhere: villager upgrades sit by the villager, unit/fort techs on their cards,
-    // and Veteran/Elite promotions already show as the unit tile changing
+    // and Veteran/Elite promotions already show as the unit tile changing. Landmark and University / Madrasa
+    // techs are listed here in full too, even though they also ride on the landmark and the unit cards;
+    // age-ups (the Abbasid wings) stay on their landmark only
     techGroups: p.techGroups.filter((g) => g.key !== "blacksmith")
-      .map((g) => ({ ...g, techs: g.techs.filter((x) => !moved.has(x.id) && !x.gather && x.type !== "upgrade") }))
+      .map((g) => ({ ...g, techs: g.techs.filter((x) => !x.gather && x.type !== "upgrade" && !x.ageUp
+        && (ALSO_LISTED.has(g.key) || landmarks.some((l) => l.item.baseId === g.key) || !moved.has(x.id))) }))
       .filter((g) => g.techs.length),
   };
 }
